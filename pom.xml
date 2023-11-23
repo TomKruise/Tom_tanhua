@@ -7,6 +7,8 @@
         <module>tom-tanhua-sso</module>
         <module>tom-tanhua-dubbo</module>
         <module>tom-tanhua-server</module>
+        <module>tom-tanhua-recommend</module>
+        <module>tom-tanhua-spark</module>
     </modules>
 
     <parent>

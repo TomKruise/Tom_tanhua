@@ -1,7 +1,6 @@
 package com.tanhua.server.service;
 
 import com.alibaba.dubbo.common.utils.CollectionUtils;
-import com.alibaba.dubbo.common.utils.StringUtils;
 import com.alibaba.dubbo.config.annotation.Reference;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.tanhua.dubbo.server.api.QuanZiApi;
@@ -14,6 +13,7 @@ import com.tanhua.server.utils.UserThreadLocal;
 import com.tanhua.server.vo.Movements;
 import com.tanhua.server.vo.PageResult;
 import com.tanhua.server.vo.PicUploadResult;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -47,7 +47,7 @@ public class MovementsService {
      * @param multipartFile
      * @return
      */
-    public Boolean saveMovements(String textContent,
+    public String saveMovements(String textContent,
                                  String location,
                                  String longitude,
                                  String latitude,
@@ -78,12 +78,42 @@ public class MovementsService {
     private PageResult queryPublishList(User user, Integer page, Integer pageSize) {
         PageResult pageResult = new PageResult();
         Long userId = null; //默认查询推荐动态
-        if (user != null) {
-            // 查询好友动态
-            userId = user.getId();
+
+        PageInfo<Publish> pageInfo = null;
+
+        if (null == user) {
+            //查询推荐动态
+            String key = "QUANZI_PUBLISH_RECOMMEND_" + UserThreadLocal.get().getId();
+            String value = this.redisTemplate.opsForValue().get(key);
+            if (StringUtils.isNotEmpty(value)) {
+                //命中了数据
+                String[] pids = StringUtils.split(value, ',');
+                int startIndex = (page-1) * pageSize;
+                if (startIndex < pids.length) {
+                    int endIndex = startIndex + pageSize - 1;
+                    if (endIndex >= pids.length) {
+                        endIndex = pids.length - 1;
+                    }
+                    List<Long> pidList = new ArrayList<>();
+                    for (int i = startIndex; i <= endIndex; i++) {
+                        pidList.add(Long.valueOf(pids[i]));
+                    }
+
+                    List<Publish> publishList = this.quanZiApi.queryPublishByPids(pidList);
+                    pageInfo = new PageInfo<>();
+                    pageInfo.setRecords(publishList);
+                }
+            }
         }
 
-        PageInfo<Publish> pageInfo = this.quanZiApi.queryPublishList(userId, page, pageSize);
+        if (null == pageInfo) {
+            if (null != user){
+                // 查询好友动态
+                userId = user.getId();
+            }
+            pageInfo = this.quanZiApi.queryPublishList(userId, page, pageSize);
+        }
+
 
         user = UserThreadLocal.get(); //查询完成后，依然还是需要获取到当前的登录用户
 

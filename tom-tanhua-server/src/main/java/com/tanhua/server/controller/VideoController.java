@@ -1,7 +1,9 @@
 package com.tanhua.server.controller;
 
+import com.tanhua.server.service.VideoMQService;
 import com.tanhua.server.service.VideoService;
 import com.tanhua.server.vo.PageResult;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,12 +25,16 @@ public class VideoController {
     @Autowired
     private CommentsController commentsController;
 
+    @Autowired
+    private VideoMQService videoMQService;
+
     @PostMapping
     public ResponseEntity<Void> saveVideo(@RequestParam(value = "videoThumbnail", required = false) MultipartFile picFile,
                                           @RequestParam(value = "videoFile", required = false) MultipartFile videoFile) {
         try {
-            Boolean bool = this.videoService.saveVideo(picFile, videoFile);
-            if (bool) {
+            String videoID = this.videoService.saveVideo(picFile, videoFile);
+            if (StringUtils.isNotEmpty(videoID)) {
+                this.videoMQService.videoMsg(videoID);
                 return ResponseEntity.ok(null);
             }
         } catch (Exception e) {
@@ -69,7 +75,11 @@ public class VideoController {
      */
     @PostMapping("/{id}/like")
     public ResponseEntity<Long> likeComment(@PathVariable("id") String videoId) {
-        return this.movementsController.likeComment(videoId);
+        ResponseEntity<Long> entity = this.movementsController.likeComment(videoId);
+        if (entity.getStatusCode().is2xxSuccessful()) {
+            this.videoMQService.likeVideoMsg(videoId);
+        }
+        return entity;
     }
 
     /**
@@ -80,7 +90,11 @@ public class VideoController {
      */
     @PostMapping("/{id}/dislike")
     public ResponseEntity<Long> disLikeComment(@PathVariable("id") String videoId) {
-        return this.movementsController.disLikeComment(videoId);
+        ResponseEntity<Long> entity = this.movementsController.disLikeComment(videoId);
+        if (entity.getStatusCode().is2xxSuccessful()) {
+            this.videoMQService.disLikeVideoMsg(videoId);
+        }
+        return entity;
     }
 
     /**
@@ -90,7 +104,8 @@ public class VideoController {
     public ResponseEntity<PageResult> queryCommentsList(@PathVariable("id") String videoId,
                                                         @RequestParam(value = "page", defaultValue = "1") Integer page,
                                                         @RequestParam(value = "pagesize", defaultValue = "10") Integer pagesize) {
-        return this.commentsController.queryCommentsList(videoId, page, pagesize);
+        ResponseEntity<PageResult> entity = this.commentsController.queryCommentsList(videoId, page, pagesize);
+        return entity;
     }
 
     /**
@@ -104,7 +119,11 @@ public class VideoController {
     public ResponseEntity<Void> saveComments(@RequestBody Map<String, String> param,
                                              @PathVariable("id") String videoId) {
         param.put("movementId", videoId);
-        return this.commentsController.saveComments(param);
+        ResponseEntity<Void> entity = this.commentsController.saveComments(param);
+        if (entity.getStatusCode().is2xxSuccessful()) {
+            this.videoMQService.commentVideoMsg(videoId);
+        }
+        return entity;
     }
 
     /**

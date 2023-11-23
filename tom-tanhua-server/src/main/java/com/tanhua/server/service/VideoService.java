@@ -49,7 +49,7 @@ public class VideoService {
     private QuanZiApi quanZiApi;
 
 
-    public Boolean saveVideo(MultipartFile picFile, MultipartFile videoFile) {
+    public String saveVideo(MultipartFile picFile, MultipartFile videoFile) {
 
         User user = UserThreadLocal.get();
 
@@ -74,7 +74,7 @@ public class VideoService {
             e.printStackTrace();
         }
 
-        return false;
+        return null;
     }
 
     public PageResult queryVideoList(Integer page, Integer pageSize) {
