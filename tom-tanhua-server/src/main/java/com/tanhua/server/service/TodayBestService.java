@@ -9,10 +9,12 @@ import com.tanhua.server.utils.UserThreadLocal;
 import com.tanhua.server.vo.PageResult;
 import com.tanhua.server.vo.RecommendUserQueryParam;
 import com.tanhua.server.vo.TodayBest;
+import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,6 +34,9 @@ public class TodayBestService {
 
     @Value("${tanhua.sso.default.user}")
     private Long defaultUserId;
+
+    @Value("${tanhua.sso.default.recommend.users}")
+    private String defaultRecommendUsers;
 
 
     public TodayBest queryTodayBest() {
@@ -66,6 +71,19 @@ public class TodayBestService {
 
         PageInfo<RecommendUser> pageInfo = this.recommendUserService.queryRecommendUserList(user.getId(), queryParam.getPage(), queryParam.getPagesize());
         List<RecommendUser> records = pageInfo.getRecords();
+
+        // 如果未查询到，需要使用默认推荐列表
+        if (CollectionUtils.isEmpty(records)) {
+            String[] split = StringUtils.split(defaultRecommendUsers, ',');
+            for (String s : split) {
+                RecommendUser recommendUser = new RecommendUser();
+                recommendUser.setUserId(Long.valueOf(s));
+                recommendUser.setToUserId(user.getId());
+                recommendUser.setScore(RandomUtils.nextDouble(60, 99));
+                records.add(recommendUser);
+            }
+        }
+
         List<Long> userIds = new ArrayList<>();
         for (RecommendUser record : records) {
             userIds.add(record.getUserId());
