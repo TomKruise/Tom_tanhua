@@ -4,7 +4,9 @@ import com.alibaba.dubbo.common.utils.CollectionUtils;
 import com.alibaba.dubbo.config.annotation.Reference;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.tanhua.dubbo.server.api.QuanZiApi;
+import com.tanhua.dubbo.server.api.VisitorsApi;
 import com.tanhua.dubbo.server.pojo.Publish;
+import com.tanhua.dubbo.server.pojo.Visitors;
 import com.tanhua.dubbo.server.vo.PageInfo;
 import com.tanhua.server.pojo.User;
 import com.tanhua.server.pojo.UserInfo;
@@ -13,6 +15,7 @@ import com.tanhua.server.utils.UserThreadLocal;
 import com.tanhua.server.vo.Movements;
 import com.tanhua.server.vo.PageResult;
 import com.tanhua.server.vo.PicUploadResult;
+import com.tanhua.server.vo.VisitorsVo;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -26,6 +29,9 @@ public class MovementsService {
 
     @Reference(version = "1.0.0")
     private QuanZiApi quanZiApi;
+
+    @Reference(version = "1.0.0")
+    private VisitorsApi visitorsApi;
 
     @Autowired
     private PicUploadService picUploadService;
@@ -310,5 +316,72 @@ public class MovementsService {
         //查询到动态数据，数据的填充
         List<Movements> movementsList = this.fillValueToMovements(Arrays.asList(publish));
         return movementsList.get(0);
+    }
+
+    public List<VisitorsVo> queryVisitorsList() {
+        User user = UserThreadLocal.get();
+
+        // 如果redis中存在上一次查询的时间点的话就按照时间查询，否则就按照数量查询
+        String redisKey = "visitors_" + user.getId();
+        String data = this.redisTemplate.opsForValue().get(redisKey);
+        List<Visitors> visitors = null;
+        if (StringUtils.isEmpty(data)) {
+            //按照数量查询
+            visitors = this.visitorsApi.topVisitor(user.getId(), 6);
+        } else {
+            //按照时间查询
+            visitors = this.visitorsApi.topVisitor(user.getId(), Long.valueOf(data));
+        }
+
+        if(CollectionUtils.isEmpty(visitors)){
+            return Collections.emptyList();
+        }
+
+        List<Long> userIds = new ArrayList<>();
+        for (Visitors visitor : visitors) {
+            userIds.add(visitor.getVisitorUserId());
+        }
+
+        QueryWrapper<UserInfo> queryWrapper = new QueryWrapper<>();
+        queryWrapper.in("user_id", userIds);
+        List<UserInfo> userInfoList = this.userInfoService.queryUserInfoList(queryWrapper);
+
+        List<VisitorsVo> result = new ArrayList<>();
+
+        for (Visitors visitor : visitors) {
+            for (UserInfo userInfo : userInfoList) {
+                if(visitor.getVisitorUserId().longValue() == userInfo.getUserId().longValue()){
+                    VisitorsVo visitorsVo = new VisitorsVo();
+
+                    visitorsVo.setAge(userInfo.getAge());
+                    visitorsVo.setAvatar(userInfo.getLogo());
+                    visitorsVo.setGender(userInfo.getSex().name().toLowerCase());
+                    visitorsVo.setId(userInfo.getUserId());
+                    visitorsVo.setNickname(userInfo.getNickName());
+                    visitorsVo.setTags(StringUtils.split(userInfo.getTags(), ','));
+                    visitorsVo.setFateValue(visitor.getScore().intValue());
+
+                    result.add(visitorsVo);
+                    break;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    public PageResult queryAlbumList(Long userId, Integer page, Integer pageSize) {
+        PageResult pageResult = new PageResult();
+        pageResult.setPage(page);
+        pageResult.setPagesize(pageSize);
+
+        PageInfo<Publish> albumPageInfo = this.quanZiApi.queryAlbumList(userId, page, pageSize);
+        List<Publish> records = albumPageInfo.getRecords();
+
+        if(CollectionUtils.isEmpty(records)){
+            return pageResult;
+        }
+        pageResult.setItems(this.fillValueToMovements(records));
+        return pageResult;
     }
 }

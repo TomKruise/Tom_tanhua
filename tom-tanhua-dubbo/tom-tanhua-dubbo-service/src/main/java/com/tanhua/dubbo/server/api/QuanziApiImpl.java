@@ -13,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -250,6 +251,32 @@ public class QuanziApiImpl implements QuanZiApi {
         return pageInfo;
     }
 
+    @Override
+    public PageInfo<Publish> queryAlbumList(Long userId, Integer page, Integer pageSize) {
+        PageInfo<Publish> pageInfo = new PageInfo<>();
+        pageInfo.setPageNum(page);
+        pageInfo.setPageSize(pageSize);
+        pageInfo.setTotal(0); //不提供总数
 
+        Pageable pageable = PageRequest.of(page - 1, pageSize, Sort.by(Sort.Order.desc("created")));
+        Query query = new Query().with(pageable);
+        List<Album> albumList = this.mongoTemplate.find(query, Album.class, "quanzi_album_" + userId);
+
+        if(CollectionUtils.isEmpty(albumList)){
+            return pageInfo;
+        }
+
+        //查询相册所对应的动态信息
+        List<ObjectId> publishIds = new ArrayList<>();
+        for (Album album : albumList) {
+            publishIds.add(album.getPublishId());
+        }
+
+        Query publishQuery = Query.query(Criteria.where("id").in(publishIds)).with(Sort.by(Sort.Order.desc("created")));
+        List<Publish> publishList = this.mongoTemplate.find(publishQuery, Publish.class);
+
+        pageInfo.setRecords(publishList);
+        return pageInfo;
+    }
 }
 
