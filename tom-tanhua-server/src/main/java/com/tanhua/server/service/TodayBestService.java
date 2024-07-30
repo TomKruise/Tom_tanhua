@@ -1,8 +1,10 @@
 package com.tanhua.server.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tanhua.dubbo.server.pojo.RecommendUser;
 import com.tanhua.dubbo.server.vo.PageInfo;
+import com.tanhua.server.pojo.Question;
 import com.tanhua.server.pojo.User;
 import com.tanhua.server.pojo.UserInfo;
 import com.tanhua.server.utils.UserThreadLocal;
@@ -13,12 +15,17 @@ import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class TodayBestService {
@@ -35,8 +42,19 @@ public class TodayBestService {
     @Value("${tanhua.sso.default.user}")
     private Long defaultUserId;
 
+    @Value("${tanhua.sso.url}")
+    private String ssoUrl;
+
     @Value("${tanhua.sso.default.recommend.users}")
     private String defaultRecommendUsers;
+
+    @Autowired
+    private QuestionService questionService;
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Autowired
+    private RestTemplate restTemplate;
 
 
     public TodayBest queryTodayBest() {
@@ -64,6 +82,38 @@ public class TodayBestService {
 
         return todayBest;
     }
+
+    public TodayBest queryTodayBest(Long userId) {
+
+        User user = UserThreadLocal.get();
+
+        TodayBest todayBest = new TodayBest();
+        //补全信息
+        UserInfo userInfo = this.userInfoService.queryUserInfoById(userId);
+        todayBest.setId(userId);
+        todayBest.setAge(userInfo.getAge());
+        todayBest.setAvatar(userInfo.getLogo());
+        todayBest.setGender(userInfo.getSex().name().toLowerCase());
+        todayBest.setNickname(userInfo.getNickName());
+        todayBest.setTags(StringUtils.split(userInfo.getTags(), ','));
+
+        double score = this.recommendUserService.queryScore(userId, user.getId());
+        if(score == 0){
+            score = 98; //默认分值
+        }
+
+        todayBest.setFateValue(Double.valueOf(score).longValue());
+        return todayBest;
+    }
+
+    public String queryQuestion(Long userId) {
+        Question question = this.questionService.queryQuestion(userId);
+        if (null != question) {
+            return question.getTxt();
+        }
+        return "";
+    }
+
 
     public PageResult queryRecommendUserList(RecommendUserQueryParam queryParam) {
         //根据token查询当前登录的用户信息
@@ -128,5 +178,48 @@ public class TodayBestService {
         Collections.sort(todayBests, (o1, o2) -> Long.valueOf(o2.getFateValue() - o1.getFateValue()).intValue());
 
         return new PageResult(0, queryParam.getPagesize(), 0, queryParam.getPage(), todayBests);
+    }
+
+    /**
+     * 回复陌生人问题，发送消息给对方
+     *
+     * @param userId
+     * @param reply
+     * @return
+     */
+    public Boolean replyQuestion(Long userId, String reply) {
+        User user = UserThreadLocal.get();
+        UserInfo userInfo = this.userInfoService.queryUserInfoById(user.getId());
+
+        //构建消息内容
+        Map<String, Object> msg = new HashMap<>();
+        msg.put("userId", user.getId().toString());
+        msg.put("nickname", this.queryQuestion(userId));
+        msg.put("strangerQuestion", userInfo.getNickName());
+        msg.put("reply", reply);
+
+        try {
+            String msgStr = MAPPER.writeValueAsString(msg);
+
+            String targetUrl = this.ssoUrl + "/user/huanxin/messages";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+            MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+            params.add("target", userId.toString());
+            params.add("msg", msgStr);
+
+            HttpEntity<MultiValueMap<String, String>> httpEntity = new HttpEntity<>(params, headers);
+
+            ResponseEntity<Void> responseEntity = this.restTemplate.postForEntity(targetUrl, httpEntity, Void.class);
+
+            return responseEntity.getStatusCodeValue() == 200;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+
+        return false;
     }
 }

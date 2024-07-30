@@ -53,4 +53,16 @@ public class RecommendUserApiImpl implements RecommendUserApi {
         // 说明：数据总条数，暂时不提供，如果需要的话再提供
         return new PageInfo<>(0, pageNum, pageSize, list);
     }
+
+    @Override
+    public double queryScore(Long userId, Long toUserId) {
+        Query query = Query.query(Criteria
+                .where("toUserId").is(toUserId)
+                .and("userId").is(userId));
+        RecommendUser recommendUser = this.mongoTemplate.findOne(query, RecommendUser.class);
+        if (null == recommendUser) {
+            return 0;
+        }
+        return recommendUser.getScore();
+    }
 }
