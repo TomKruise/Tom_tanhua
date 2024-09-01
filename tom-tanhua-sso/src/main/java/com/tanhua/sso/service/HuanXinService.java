@@ -14,8 +14,7 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class HuanXinService {
@@ -96,6 +95,43 @@ public class HuanXinService {
         }
 
         // 添加失败
+        return false;
+    }
+
+    public Boolean sendMsg(String target, String msg, String type) {
+        String targetUrl = this.huanXinConfig.getUrl()
+                + this.huanXinConfig.getOrgName() + "/"
+                + this.huanXinConfig.getAppName() + "/messages";
+
+        try {
+            String token = this.huanXinTokenService.getToken();
+            //请求头
+            HttpHeaders headers = new HttpHeaders();
+            headers.add("Content-Type", "application/json ");
+            headers.add("Authorization", "Bearer " + token);
+
+            Map<String, Object> requestParam = new HashMap<>();
+            requestParam.put("target_type", "users");
+            requestParam.put("target", Arrays.asList(target));
+
+            Map<String, Object> msgParam = new HashMap<>();
+            msgParam.put("msg", msg);
+            msgParam.put("type", type);
+
+            requestParam.put("msg", msgParam);
+            //表示消息发送者;无此字段Server会默认设置为“from”:“admin”，有from字段但值为空串(“”)时请求失败
+//        requestParam.put("from", null);
+
+            HttpEntity<String> httpEntity = new HttpEntity<>(MAPPER.writeValueAsString(requestParam), headers);
+
+            ResponseEntity<String> responseEntity = this.restTemplate.postForEntity(targetUrl, httpEntity, String.class);
+
+            return responseEntity.getStatusCodeValue() == 200;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         return false;
     }
 }

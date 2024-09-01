@@ -4,10 +4,7 @@ import com.tanhua.sso.service.HuanXinService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("user/huanxin")
@@ -35,6 +32,29 @@ public class HuanXinController {
             e.printStackTrace();
         }
 
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
+
+    /**
+     * 发送消息给环信平台
+     *
+     * @param target
+     * @param msg
+     * @param type
+     * @return
+     */
+    @PostMapping("messages")
+    public ResponseEntity<Void> sendMsg(@RequestParam("target") String target,
+                                        @RequestParam("msg") String msg,
+                                        @RequestParam(value = "type", defaultValue = "txt") String type) {
+        try {
+            Boolean result = this.huanXinService.sendMsg(target, msg, type);
+            if (result) {
+                return ResponseEntity.ok(null);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
     }
 }
