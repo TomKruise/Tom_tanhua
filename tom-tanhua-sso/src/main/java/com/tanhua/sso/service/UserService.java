@@ -68,6 +68,9 @@ public class UserService {
             return null;
         }
 
+        // 验证码正确,删除之前的验证码
+        this.redisTemplate.delete(redisKey);
+
         Boolean isNew = false; //默认是已注册
 
         //校验该手机号是否已经注册，如果没有注册，需要注册一个账号，如果已经注册，直接登录
@@ -136,5 +139,21 @@ public class UserService {
             e.printStackTrace();
         }
         return null;
+    }
+
+    public Boolean updateNewMobile(Long id, String newPhone){
+        //校验新手机号是否已经注册
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("mobile", newPhone);
+        User oldUser = this.userMapper.selectOne(queryWrapper);
+        if(null != oldUser){
+            // 该手机号已经注册
+            return false;
+        }
+
+        User user = new User();
+        user.setId(id);
+        user.setMobile(newPhone);
+        return this.userMapper.updateById(user) > 0;
     }
 }

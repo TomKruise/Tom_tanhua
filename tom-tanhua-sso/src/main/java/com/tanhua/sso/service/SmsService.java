@@ -30,6 +30,8 @@ public class SmsService {
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
 
+    public static final String REDIS_KEY_PREFIX = "CHECK_CODE_";
+
     /**
      * 发送验证码
      *
@@ -39,14 +41,15 @@ public class SmsService {
     public Map<String, Object> sendCheckCode(String mobile) {
         Map<String, Object> result = new HashMap<>(2);
         try {
-            String redisKey = "CHECK_CODE_" + mobile;
+            String redisKey = REDIS_KEY_PREFIX + mobile;
             String value = this.redisTemplate.opsForValue().get(redisKey);
             if (StringUtils.isNotEmpty(value)) {
                 result.put("code", 1);
                 result.put("msg", "上一次发送的验证码还未失效");
                 return result;
             }
-            String code = this.sendSms(mobile);
+//            String code = this.sendSms(mobile);
+            String code = "123456";
             if (null == code) {
                 result.put("code", 2);
                 result.put("msg", "发送短信验证码失败");
